@@ -1,0 +1,88 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#070b18"><title>WatchDog · 配网</title>
+<link rel="stylesheet" href="/ui.css">
+</head><body>
+<div class="w">
+<header>
+  <div class="lg"><svg viewBox="0 0 24 24"><path d="M2 8.8a16 16 0 0 1 20 0"/><path d="M5.5 12.6a11 11 0 0 1 13 0"/><path d="M9 16.4a5.6 5.6 0 0 1 6 0"/><circle cx="12" cy="20" r="1"/></svg></div>
+  <div class="hd"><h1>首次配置</h1><p>把设备连到你家的 WiFi</p></div>
+</header>
+
+<section class="card">
+  <div class="ch"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span>
+    <h2>选择网络</h2><span class="sub" id="scanTip">点击扫描</span>
+    <button class="btn ghost sm" id="btnScan" type="button">扫描</button></div>
+  <div id="nets"><div class="empty">点右上角「扫描」列出周边 WiFi</div></div>
+</section>
+
+<section class="card">
+  <div class="ch"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h6"/></svg></span>
+    <h2>连接信息</h2></div>
+  <label>WiFi 名称（SSID）</label>
+  <div class="inp"><input id="ssid" placeholder="家里 WiFi 名称" autocomplete="off" spellcheck="false"></div>
+  <label>WiFi 密码</label>
+  <div class="inp"><input id="pass" type="password" placeholder="路由器密码" autocomplete="off"></div>
+  <label>网页访问密码（可选，建议设置）</label>
+  <div class="inp"><input id="webpass" type="password" placeholder="留空则任何人连上局域网都能访问看板" autocomplete="off"></div>
+  <label>Server 酱 SendKey（可选，断网时推送到微信）</label>
+  <div class="inp"><input id="sendkey" placeholder="sctapi.ftqq.com 上的 SendKey，留空则不推送" autocomplete="off" spellcheck="false"></div>
+  <button class="btn full" id="btnSave" type="button">保存并连接</button>
+  <p class="muted" style="margin:12px 0 0">保存后设备会重启并尝试连接，成功后看板地址为设备在局域网中的 IP（路由器后台可查，或访问 <b>watchdog.local</b>）。</p>
+</section>
+
+<footer>WatchDog · 网络看门狗</footer>
+</div>
+<div id="toast"></div>
+<script src="/ui.js"></script>
+<script>
+(function () {
+  function scan() {
+    $('scanTip').textContent = '扫描中…';
+    $('btnScan').disabled = true;
+    reqJSON('/api/scan', function (d) {
+      $('btnScan').disabled = false;
+      var list = (d && d.nets) || [];
+      if (!list.length) { $('nets').innerHTML = '<div class="empty">没扫到网络，可以手动填写</div>'; $('scanTip').textContent = '0 个'; return; }
+      list.sort(function (a, b) { return b.r - a.r; });
+      var h = '';
+      for (var i = 0; i < list.length; i++) {
+        var n = list[i], bars = n.r >= -55 ? 4 : n.r >= -67 ? 3 : n.r >= -78 ? 2 : 1;
+        h += '<div class="net" data-s="' + esc(n.s) + '" style="display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid rgba(255,255,255,.06);cursor:pointer">' +
+             '<b style="color:#5eead4">' + '▮'.repeat(bars) + '</b>' +
+             '<span style="flex:1">' + esc(n.s) + '</span>' +
+             '<span class="muted">' + n.r + ' dBm</span></div>';
+      }
+      $('nets').innerHTML = h;
+      $('scanTip').textContent = list.length + ' 个';
+    });
+  }
+
+  $('nets').onclick = function (e) {
+    var el = e.target.closest ? e.target.closest('.net') : null;
+    if (!el) return;
+    $('ssid').value = el.getAttribute('data-s');
+    $('pass').focus();
+  };
+
+  $('btnScan').onclick = scan;
+
+  $('btnSave').onclick = function () {
+    var s = $('ssid').value.replace(/^\s+|\s+$/g, '');
+    if (!s) { toast('请填写 WiFi 名称'); return; }
+    var b = this; b.disabled = true; b.textContent = '保存中…';
+    var body = 'ssid=' + encodeURIComponent(s) +
+               '&pass=' + encodeURIComponent($('pass').value) +
+               '&webpass=' + encodeURIComponent($('webpass').value) +
+               '&sendkey=' + encodeURIComponent($('sendkey').value);
+    req('/api/config', { method: 'POST', body: body }, function (t) {
+      if (t === null) { b.disabled = false; b.textContent = '保存并连接'; toast('设备无响应'); return; }
+      toast('已保存，设备重启中…');
+      setTimeout(function () { location.reload(); }, 9000);
+    });
+  };
+
+  scan();
+})();
+</script>
+</body></html>

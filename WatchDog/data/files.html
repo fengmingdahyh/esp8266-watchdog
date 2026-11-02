@@ -1,0 +1,93 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#070b18"><title>WatchDog · 文件服务器</title>
+<link rel="stylesheet" href="/ui.css">
+</head><body>
+<div class="w">
+<header>
+  <div class="lg"><svg viewBox="0 0 24 24"><path d="M3 7h6l2 2h10v10H3z"/><path d="M3 7V5h6l2 2"/></svg></div>
+  <div class="hd"><h1>文件服务器</h1><p id="sub">存放在设备 Flash 里</p></div>
+  <a class="pill" href="/" style="text-decoration:none">← 返回看板</a>
+</header>
+
+<section class="card">
+  <div class="ch"><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 20h16"/></svg></span>
+    <h2>上传文件</h2><span class="sub" id="space">—</span></div>
+  <div class="row">
+    <input id="file" type="file" multiple style="flex:2 1 200px;color:#8b97b8;font-size:13px">
+    <button class="btn" id="btnUp" type="button">开始上传</button>
+  </div>
+  <div class="muted" id="prog" style="margin-top:10px">单文件建议 < 300 KB，总空间见右上角</div>
+</section>
+
+<section class="card">
+  <div class="ch"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg></span>
+    <h2>已存文件</h2><span class="sub" id="cnt">—</span>
+    <button class="btn ghost sm" id="btnReload" type="button">刷新</button></div>
+  <div id="list"><div class="empty">读取中…</div></div>
+</section>
+
+<footer>文件保存在设备本地 Flash，重启不丢</footer>
+</div>
+<div id="toast"></div>
+<script src="/ui.js"></script>
+<script>
+(function () {
+  function load() {
+    reqJSON('/api/files', function (d) {
+      if (!d) { $('list').innerHTML = '<div class="empty">读取失败</div>'; return; }
+      $('space').textContent = fmtBytes(d.used) + ' / ' + fmtBytes(d.total);
+      $('cnt').textContent = d.files.length + ' 个文件';
+      if (!d.files.length) { $('list').innerHTML = '<div class="empty">还没有文件，先上传一个试试</div>'; return; }
+      d.files.sort(function (a, b) { return a.n.localeCompare(b.n); });
+      var h = '<table>';
+      for (var i = 0; i < d.files.length; i++) {
+        var f = d.files[i];
+        h += '<tr><td style="word-break:break-all">' + esc(f.n) + '</td>' +
+             '<td class="n" style="text-align:right">' + fmtBytes(f.s) + '</td>' +
+             '<td style="width:96px;text-align:right">' +
+             '<a class="btn ghost sm" style="text-decoration:none;padding:6px 9px;margin-right:6px" href="/dl?n=' + encodeURIComponent(f.n) + '">下载</a>' +
+             '<button class="btn ghost sm" data-del="' + esc(f.n) + '" type="button">删</button>' +
+             '</td></tr>';
+      }
+      h += '</table>';
+      $('list').innerHTML = h;
+    });
+  }
+
+  $('list').onclick = function (e) {
+    var b = e.target.closest ? e.target.closest('button[data-del]') : null;
+    if (!b) return;
+    var n = b.getAttribute('data-del');
+    if (!confirm('删除 ' + n + ' ？')) return;
+    req('/api/delete?n=' + encodeURIComponent(n), {}, function () { toast('已删除'); load(); });
+  };
+
+  $('btnUp').onclick = function () {
+    var input = $('file');
+    if (!input.files || !input.files.length) { toast('先选择文件'); return; }
+    var files = Array.prototype.slice.call(input.files);
+    var idx = 0;
+
+    function next() {
+      if (idx >= files.length) { toast('上传完成'); input.value = ''; $('prog').textContent = '完成'; load(); return; }
+      var f = files[idx++];
+      var fd = new FormData();
+      fd.append('f', f, f.name);
+      var x = new XMLHttpRequest();
+      x.open('POST', '/api/upload', true);
+      x.upload.onprogress = function (ev) {
+        if (ev.lengthComputable) $('prog').textContent = f.name + ' ' + Math.round(ev.loaded * 100 / ev.total) + '%';
+      };
+      x.onload = function () { $('prog').textContent = f.name + ' 完成'; next(); };
+      x.onerror = function () { toast('上传失败：' + f.name); $('prog').textContent = '失败'; next(); };
+      x.send(fd);
+    }
+    next();
+  };
+
+  $('btnReload').onclick = function () { load(); toast('已刷新'); };
+  load();
+})();
+</script>
+</body></html>
