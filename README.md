@@ -7,6 +7,8 @@
 
 ![看板](docs/dashboard.png)
 
+![房间控制台](docs/console_app.png)
+
 ---
 
 ## 功能
