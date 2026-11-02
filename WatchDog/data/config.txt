@@ -1,0 +1,15 @@
+ssid=
+pass=
+ssid2=
+pass2=
+webpass=
+host=www.baidu.com
+dns=223.5.5.5
+ip=
+gw=
+mask=
+sendkey=
+port=80
+interval=60
+tz=8
+daily=1
